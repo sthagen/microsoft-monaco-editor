@@ -184,48 +184,9 @@ function addPluginContribs(type) {
 			var contribPath = path.join(__dirname, pluginPath, plugin.contrib.substr(plugin.modulePrefix.length)) + '.js';
 			var contribContents = fs.readFileSync(contribPath).toString();
 
-			// Check for the anonymous define call case 1
-			// transform define(function() {...}) to define("moduleId",["require"],function() {...})
-			var anonymousContribDefineCase1 = contribContents.indexOf('define(function');
-			if (anonymousContribDefineCase1 >= 0) {
-				contribContents = (
-					contribContents.substring(0, anonymousContribDefineCase1)
-					+ `define("${plugin.contrib}",["require"],function`
-					+ contribContents.substring(anonymousContribDefineCase1 + 'define(function'.length)
-				);
-			}
-
-			// Check for the anonymous define call case 2
-			// transform define([ to define("moduleId",[
-			var anonymousContribDefineCase2 = contribContents.indexOf('define([');
-			if (anonymousContribDefineCase2 >= 0) {
-				contribContents = (
-					contribContents.substring(0, anonymousContribDefineCase2)
-					+ `define("${plugin.contrib}",[`
-					+ contribContents.substring(anonymousContribDefineCase2 + 'define(['.length)
-				);
-			}
-
-			var contribDefineIndex = contribContents.indexOf('define("' + plugin.contrib);
-			if (contribDefineIndex === -1) {
-				contribDefineIndex = contribContents.indexOf('define(\'' + plugin.contrib);
-				if (contribDefineIndex === -1) {
-					console.error('(1) CANNOT DETERMINE AMD define location for contribution', pluginPath);
-					process.exit(-1);
-				}
-			}
-
-			var depsEndIndex = contribContents.indexOf(']', contribDefineIndex);
-			if (contribDefineIndex === -1) {
-				console.error('(2) CANNOT DETERMINE AMD define location for contribution', pluginPath);
-				process.exit(-1);
-			}
-
-			contribContents = contribContents.substring(0, depsEndIndex) + ',"vs/editor/editor.api"' + contribContents.substring(depsEndIndex);
-
 			contribContents = contribContents.replace(
-				'define("vs/basic-languages/_.contribution",["require","exports"],',
-				'define("vs/basic-languages/_.contribution",["require","exports","vs/editor/editor.api"],',
+				/define\((['"][a-z\/\-]+\/fillers\/monaco-editor-core['"]),\[\],/,
+				'define($1,[\'vs/editor/editor.api\'],'
 			);
 
 			extraContent.push(contribContents);
@@ -291,7 +252,7 @@ function ESM_pluginStream(plugin, destinationPath) {
 
 			const info = ts.preProcessFile(contents);
 			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-				const importText = info.importedFiles[i].fileName;
+				let importText = info.importedFiles[i].fileName;
 				const pos = info.importedFiles[i].pos;
 				const end = info.importedFiles[i].end;
 
@@ -300,6 +261,10 @@ function ESM_pluginStream(plugin, destinationPath) {
 					if (!/^monaco-editor-core/.test(importText)) {
 						console.error(`Non-relative import for unknown module: ${importText} in ${data.path}`);
 						process.exit(0);
+					}
+
+					if (importText === 'monaco-editor-core') {
+						importText = 'monaco-editor-core/esm/vs/editor/editor.api';
 					}
 
 					const myFileDestPath = path.join(DESTINATION, plugin.modulePrefix, data.relative);
@@ -443,7 +408,7 @@ function addPluginDTS() {
 			var dtsPath = path.join(pluginPath, '../monaco.d.ts');
 			try {
 				let plugindts = fs.readFileSync(dtsPath).toString();
-				plugindts = plugindts.replace('declare module', 'declare namespace');
+				plugindts = plugindts.replace(/\/\/\/ <reference.*\n/m, '');
 				extraContent.push(plugindts);
 			} catch (err) {
 				return;
@@ -566,11 +531,34 @@ function addPluginThirdPartyNotices() {
 
 
 // --- website
-
+function typedocStream() {
+	const initialCWD = process.cwd();
+	// TypeDoc is silly and consumes the `exclude` option.
+	// This option does not make it to typescript compiler, which ends up including /node_modules/ .d.ts files.
+	// We work around this by changing the cwd... :O
+	return gulp.src('monaco.d.ts')
+	.pipe(es.through(undefined, function() {
+		process.chdir(os.tmpdir());
+		this.emit('end');
+	}))
+	.pipe(typedoc({
+		mode: 'file',
+		out: path.join(__dirname, '../monaco-editor-website/api'),
+		includeDeclarations: true,
+		theme: path.join(__dirname, 'website/typedoc-theme'),
+		entryPoint: 'monaco',
+		name: 'Monaco Editor API v' + MONACO_EDITOR_VERSION,
+		readme: 'none',
+		hideGenerator: true
+	}))
+	.pipe(es.through(undefined, function() {
+		process.chdir(initialCWD);
+		this.emit('end');
+	}))
+};
+gulp.task('typedoc', () => typedocStream());
 const cleanWebsiteTask = function(cb) { rimraf('../monaco-editor-website', { maxBusyTries: 1 }, cb); };
 const buildWebsiteTask = taskSeries(cleanWebsiteTask, function() {
-
-	const initialCWD = process.cwd();
 
 	function replaceWithRelativeResource(dataPath, contents, regex, callback) {
 		return contents.replace(regex, function(_, m0) {
@@ -665,29 +653,7 @@ const buildWebsiteTask = taskSeries(cleanWebsiteTask, function() {
 			}))
 			.pipe(gulp.dest('../monaco-editor-website')),
 
-			// TypeDoc is silly and consumes the `exclude` option.
-			// This option does not make it to typescript compiler, which ends up including /node_modules/ .d.ts files.
-			// We work around this by changing the cwd... :O
-
-			gulp.src('monaco.d.ts')
-			.pipe(es.through(undefined, function() {
-				process.chdir(os.tmpdir());
-				this.emit('end');
-			}))
-			.pipe(typedoc({
-				mode: 'file',
-				out: path.join(__dirname, '../monaco-editor-website/api'),
-				includeDeclarations: true,
-				theme: path.join(__dirname, 'website/typedoc-theme'),
-				entryPoint: 'monaco',
-				name: 'Monaco Editor API v' + MONACO_EDITOR_VERSION,
-				readme: 'none',
-				hideGenerator: true
-			}))
-			.pipe(es.through(undefined, function() {
-				process.chdir(initialCWD);
-				this.emit('end');
-			}))
+			typedocStream()
 		)
 
 		.pipe(es.through(function(data) {
@@ -850,6 +816,8 @@ function createSimpleServer(rootDir, port) {
 		});
 	});
 }
+
+gulp.task('generate-test-samples', taskSeries(generateTestSamplesTask));
 
 gulp.task('simpleserver', taskSeries(generateTestSamplesTask, function() {
 	const SERVER_ROOT = path.normalize(path.join(__dirname, '../'));
