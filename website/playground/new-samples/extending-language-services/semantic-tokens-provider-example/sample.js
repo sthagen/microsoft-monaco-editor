@@ -24,7 +24,7 @@ function getModifier(modifiers) {
     if (Array.isArray(modifiers)) {
         let nModifiers = 0;
         for (let modifier of modifiers) {
-            nModifier = legend.tokenModifiers.indexOf(modifier);
+            const nModifier = legend.tokenModifiers.indexOf(modifier);
             if (nModifier > -1) {
                 nModifiers |= (1 << nModifier) >>> 0;
             }
@@ -35,7 +35,7 @@ function getModifier(modifiers) {
     }
 }
 
-const tokenPattern = new RegExp('(?<=\\[)([a-zA-Z]+)((?:\\.[a-zA-Z]+)*)(?=\\])', 'g');
+const tokenPattern = new RegExp('([a-zA-Z]+)((?:\\.[a-zA-Z]+)*)', 'g');
 
 monaco.languages.registerDocumentSemanticTokensProvider('plaintext', {
     getLegend: function () {
