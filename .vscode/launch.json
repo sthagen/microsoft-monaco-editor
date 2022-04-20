@@ -5,26 +5,40 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
-			"name": "gulp release",
-			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
-			"stopOnEntry": true,
-			"args": [
-				"release"
-			],
+			"name": "Monaco Languages Unit Tests",
+			"skipFiles": ["<node_internals>/**"],
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"args": ["-r", "test/unit/all.js"],
+			"outFiles": ["${workspaceFolder}/**/*.js"]
+		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "release",
+			"skipFiles": ["<node_internals>/**"],
+			"program": "${workspaceFolder}/build/release.js",
+			"args": [],
 			"cwd": "${workspaceFolder}"
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
-			"name": "gulp website",
-			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
-			"stopOnEntry": true,
-			"args": [
-				"website"
-			],
+			"name": "website",
+			"skipFiles": ["<node_internals>/**"],
+			"program": "${workspaceFolder}/build/website.js",
+			"args": [],
 			"cwd": "${workspaceFolder}"
 		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "webpack plugin test",
+			"skipFiles": ["<node_internals>/**"],
+			"program": "${workspaceFolder}/webpack-plugin/node_modules/.bin/webpack",
+			"args": ["--config", "test/webpack.config.js"],
+			"cwd": "${workspaceFolder}/webpack-plugin/"
+		}
 	]
 }
