@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from "@hediet/std/disposable";
 import {
 	action,
 	autorun,
@@ -12,20 +11,25 @@ import {
 	ObservableMap,
 	reaction,
 	runInAction,
-	trace,
 } from "mobx";
-import {
-	getLoadedMonaco,
-	IMonacoSetup,
-	loadMonaco,
-} from "../../../monaco-loader";
+import { IMonacoSetup, loadMonaco } from "../../../monaco-loader";
 import { IPlaygroundProject, IPreviewState } from "../../../shared";
-import { getPlaygroundExamples, PlaygroundExample } from "./playgroundExamples";
+import { monacoEditorVersion } from "../../monacoEditorVersion";
+import { Debouncer } from "../../utils/Debouncer";
+import { LzmaCompressor } from "../../utils/lzmaCompressor";
 import {
 	HistoryController,
 	IHistoryModel,
 	ILocation,
 } from "../../utils/ObservableHistory";
+import { ObservablePromise } from "../../utils/ObservablePromise";
+import { debouncedComputed, Disposable } from "../../utils/utils";
+import {
+	getNpmVersions,
+	getNpmVersionsSync,
+	getVsCodeCommitId,
+} from "./getNpmVersionsSync";
+import { getPlaygroundExamples, PlaygroundExample } from "./playgroundExamples";
 import {
 	getDefaultSettings,
 	JsonString,
@@ -33,17 +37,6 @@ import {
 	SettingsModel,
 	toLoaderConfig,
 } from "./SettingsModel";
-import { Debouncer } from "../../utils/Debouncer";
-import { LzmaCompressor } from "../../utils/lzmaCompressor";
-import { ObservablePromise } from "../../utils/ObservablePromise";
-import { transaction } from "mobx";
-import { debouncedComputed } from "../../utils/utils";
-import {
-	getNpmVersions,
-	getNpmVersionsSync,
-	getVsCodeCommitId,
-} from "./getNpmVersionsSync";
-import { monacoEditorVersion } from "../../monacoEditorVersion";
 
 export class PlaygroundModel {
 	public readonly dispose = Disposable.fn();
@@ -293,15 +286,24 @@ class StateUrlSerializer implements IHistoryModel {
 	private get sourceFromSettings(): Source | undefined {
 		const settings = this.model.settings.settings;
 		if (settings.monacoSource === "npm") {
-			return new Source(settings.npmVersion, undefined);
+			return new Source(settings.npmVersion, undefined, undefined);
 		} else if (
 			settings.monacoSource === "independent" &&
-			settings.coreSource === "url" &&
-			settings.languagesSource === "latest"
+			((settings.coreSource === "url" &&
+				(settings.languagesSource === "latest" ||
+					settings.languagesSource === "url")) ||
+				(settings.coreSource === "latest" &&
+					settings.languagesSource === "url"))
 		) {
-			return new Source(undefined, settings.coreUrl);
+			return new Source(
+				undefined,
+				settings.coreSource === "url" ? settings.coreUrl : undefined,
+				settings.languagesSource === "latest"
+					? undefined
+					: settings.languagesUrl
+			);
 		} else if (settings.monacoSource === "latest") {
-			return new Source(monacoEditorVersion, undefined);
+			return new Source(monacoEditorVersion, undefined, undefined);
 		}
 		return undefined;
 	}
@@ -338,12 +340,13 @@ class StateUrlSerializer implements IHistoryModel {
 	@observable historyId: number = 0;
 
 	get location(): ILocation {
-		const source = (
-			this._sourceOverride || this.sourceFromSettings
-		)?.toString();
+		const source = this._sourceOverride || this.sourceFromSettings;
 		return {
 			hashValue: this.computedHashValue.value || this.cachedState?.hash,
-			searchParams: { source },
+			searchParams: {
+				source: source?.sourceToString(),
+				sourceLanguages: source?.sourceLanguagesToString(),
+			},
 		};
 	}
 
@@ -351,7 +354,11 @@ class StateUrlSerializer implements IHistoryModel {
 	updateLocation(currentLocation: ILocation): void {
 		const hashValue = currentLocation.hashValue;
 		const sourceStr = currentLocation.searchParams.source;
-		const source = sourceStr ? Source.parse(sourceStr) : undefined;
+		const sourceLanguages = currentLocation.searchParams.sourceLanguages;
+		const source =
+			sourceStr || sourceLanguages
+				? Source.parse(sourceStr, sourceLanguages)
+				: undefined;
 
 		if (this.sourceFromSettings?.equals(source)) {
 			this._sourceOverride = undefined;
@@ -567,39 +574,66 @@ function findLastIndex<T>(
 }
 
 class Source {
-	public static parse(str: string): Source {
-		if (str.startsWith("v")) {
-			return new Source(str.substring(1), undefined);
+	public static parse(
+		sourceStr: string | undefined,
+		sourceLanguagesStr: string | undefined
+	): Source {
+		if (sourceStr && sourceStr.startsWith("v")) {
+			return new Source(
+				sourceStr.substring(1),
+				undefined,
+				sourceLanguagesStr
+			);
 		}
-		return new Source(undefined, str);
+		return new Source(undefined, sourceStr, sourceLanguagesStr);
 	}
 
 	public equals(other: Source | undefined): boolean {
 		if (!other) {
 			return false;
 		}
-		return other.url === this.url && other.version === this.version;
+		return other.toString() === this.toString();
 	}
 
 	constructor(
 		public readonly version: string | undefined,
-		public readonly url: string | undefined
+		public readonly url: string | undefined,
+		public readonly sourceLanguagesStr: string | undefined
 	) {
-		if ((version === undefined) === (url === undefined)) {
-			throw new Error("Exactly version or url must be defined");
+		if (
+			version === undefined &&
+			url === undefined &&
+			sourceLanguagesStr === undefined
+		) {
+			throw new Error("one parameter must be defined");
 		}
 	}
 
-	toString() {
+	sourceToString(): string | undefined {
 		if (this.url) {
 			return this.url;
 		}
 		if (this.version) {
 			return `v${this.version}`;
 		}
+		return undefined;
+	}
+
+	sourceLanguagesToString(): string | undefined {
+		return this.sourceLanguagesStr;
+	}
+
+	toString() {
+		return `${this.sourceToString()};${this.sourceLanguagesToString()}`;
 	}
 
 	public toPartialSettings(): Partial<Settings> {
+		const languagesSettings: Partial<Settings> = {
+			languagesSource:
+				this.sourceLanguagesStr === undefined ? "latest" : "url",
+			languagesUrl: this.sourceLanguagesStr,
+		};
+
 		if (this.version) {
 			return {
 				monacoSource: "npm",
@@ -610,10 +644,14 @@ class Source {
 				monacoSource: "independent",
 				coreSource: "url",
 				coreUrl: this.url,
-				languagesSource: "latest",
+				...languagesSettings,
 			};
 		} else {
-			throw new Error();
+			return {
+				monacoSource: "independent",
+				coreSource: "latest",
+				...languagesSettings,
+			};
 		}
 	}
 }
