@@ -4,15 +4,16 @@
 		{
 			"label": "Launch Http Server",
 			"type": "shell",
-			"command": "node_modules/.bin/http-server --cors --port 5002 -a 127.0.0.1 -s -c-1",
+			"command": "node_modules/.bin/http-server --cors --port 5002 -a 127.0.0.1 -c-1",
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {
-					"regexp": ""
+					"regexp": "does not support problems"
 				},
 				"background": {
-					"beginsPattern": ".*",
-					"endsPattern": ".*"
+					"activeOnStart": true,
+					"beginsPattern": "Shutting down http-server (will never match)",
+					"endsPattern": "Starting up http-server"
 				}
 			},
 			"dependsOn": ["npm: watch"]

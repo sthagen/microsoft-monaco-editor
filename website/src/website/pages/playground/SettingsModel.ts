@@ -115,10 +115,10 @@ export function toLoaderConfig(settings: Settings): IMonacoSetup {
 			let languagesUrl: string;
 			switch (settings.languagesSource) {
 				case "latest":
-					languagesUrl = `${root}/out/release/${settings.latestLanguagesStability}/vs`;
+					languagesUrl = `${root}/out/languages/bundled/amd-${settings.latestLanguagesStability}/vs`;
 					break;
 				case "source":
-					languagesUrl = `${root}/out/amd`;
+					languagesUrl = `${root}/out/languages/amd-tsc`;
 					break;
 				case "url":
 					languagesUrl = settings.languagesUrl;
@@ -138,7 +138,7 @@ export function toLoaderConfig(settings: Settings): IMonacoSetup {
 			}
 
 			Object.assign(setup.loaderConfigPaths, {
-				"vs/fillers/monaco-editor-core": `${root}/out/amd/fillers/monaco-editor-core-amd`,
+				"vs/fillers/monaco-editor-core": `${root}/out/languages/amd-tsc/fillers/monaco-editor-core-amd`,
 				"vs/language": `${languagesUrl}/language`,
 				"vs/basic-language": `${languagesUrl}/basic-language`,
 			});
@@ -156,11 +156,11 @@ export function getDefaultSettings(): Settings {
 
 		coreSource: "latest",
 		latestCoreStability: "dev",
-		coreUrl: "http://localhost:5000/out/vs",
+		coreUrl: "http://localhost:5001/out/vs",
 
 		languagesSource: "latest",
 		latestLanguagesStability: "dev",
-		languagesUrl: "http://localhost:8080/out",
+		languagesUrl: "http://localhost:5002/out/languages/amd-tsc",
 		customConfig: JSON.stringify({
 			loaderUrl: "",
 			codiconUrl: "",
