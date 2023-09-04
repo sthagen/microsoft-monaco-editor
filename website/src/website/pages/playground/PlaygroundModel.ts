@@ -405,6 +405,16 @@ class StateUrlSerializer implements IHistoryModel {
 	}
 
 	@action
+	useLatestDev(): void {
+		this._sourceOverride = undefined;
+		this.model.settings.setSettings({
+			...this.model.settings.settings,
+			...Source.useLatestDev().toPartialSettings(),
+		});
+		this.historyId++;
+	}
+
+	@action
 	saveSourceOverride(): void {
 		if (this._sourceOverride) {
 			this.model.settings.setSettings({
@@ -662,10 +672,28 @@ function findLastIndex<T>(
 }
 
 class Source {
+	public static useLatestDev(sourceLanguagesStr?: string): Source {
+		// Assume the versions are already loaded
+		const versions = getNpmVersionsSync(undefined);
+		const version = versions.find((v) => v.indexOf("-dev-") !== -1);
+		return new Source(version, undefined, sourceLanguagesStr);
+	}
+
+	public static useLatest(sourceLanguagesStr?: string): Source {
+		return new Source(monacoEditorVersion, undefined, sourceLanguagesStr);
+	}
+
 	public static parse(
 		sourceStr: string | undefined,
 		sourceLanguagesStr: string | undefined
 	): Source {
+		if (sourceStr === "latest-dev") {
+			return Source.useLatestDev(sourceLanguagesStr);
+		}
+		if (sourceStr === "latest") {
+			return Source.useLatest(sourceLanguagesStr);
+		}
+
 		if (sourceStr && sourceStr.startsWith("v")) {
 			return new Source(
 				sourceStr.substring(1),
