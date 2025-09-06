@@ -3,6 +3,7 @@ import { glob } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { urlToEsmPlugin } from './plugin';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ export default defineConfig(async (args) => {
 		},
 		build: {
 			lib: {
+				cssFileName: () => 'editor/editor.main.css',
 				entry: {
 					...nlsEntries,
 					'nls.messages-loader': resolve(__dirname, 'src/nls.messages-loader.js'),
@@ -61,7 +63,12 @@ export default defineConfig(async (args) => {
 			),
 			rollupOptions: {
 				external: ['require', 'vs/nls.messages-loader!'],
-				output: {}
+				output: {
+					amd: {
+						basePath: 'vs',
+						autoId: true
+					}
+				}
 			},
 			minify: args.mode !== 'development',
 			emptyOutDir: true
@@ -77,7 +84,8 @@ export default defineConfig(async (args) => {
 						source: readFileSync(resolve(__dirname, './src/loader.js'), 'utf-8')
 					});
 				}
-			}
+			},
+			urlToEsmPlugin()
 		]
 	};
 });
