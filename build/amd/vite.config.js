@@ -18,6 +18,7 @@ export default defineConfig(async (args) => {
 		nlsEntries[entryName] = path;
 	}
 
+	/** @type {import('vite').UserConfig} */
 	return {
 		base: './',
 		define: {
@@ -25,7 +26,7 @@ export default defineConfig(async (args) => {
 		},
 		build: {
 			lib: {
-				cssFileName: () => 'editor/editor.main.css',
+				cssFileName: 'editor/editor.main',
 				entry: {
 					...nlsEntries,
 					'nls.messages-loader': resolve(__dirname, 'src/nls.messages-loader.js'),
