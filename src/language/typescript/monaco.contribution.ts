@@ -5,7 +5,7 @@
 
 import type * as mode from './tsMode';
 import { typescriptVersion as tsversion } from './lib/typescriptServicesMetadata'; // do not import the whole typescriptServices here
-import { languages, Emitter, IEvent, IDisposable, Uri } from '../../fillers/monaco-editor-core';
+import { languages, Emitter, IEvent, IDisposable, Uri } from 'monaco-editor-core';
 
 //#region enums copied from typescript to prevent loading the entire typescriptServices ---
 
@@ -794,17 +794,8 @@ export const getJavaScriptWorker = (): Promise<(...uris: Uri[]) => Promise<TypeS
 
 // --- Registration to monaco editor ---
 
-declare var AMD: any;
-declare var require: any;
-
 function getMode(): Promise<typeof mode> {
-	if (AMD) {
-		return new Promise((resolve, reject) => {
-			require(['vs/language/typescript/tsMode'], resolve, reject);
-		});
-	} else {
-		return import('./tsMode');
-	}
+	return import('./tsMode');
 }
 
 languages.onLanguage('typescript', () => {
