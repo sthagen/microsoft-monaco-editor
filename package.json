@@ -1,6 +1,6 @@
 {
 	"name": "monaco-editor",
-	"version": "0.55.0",
+	"version": "0.55.1",
 	"vscodeRef": "86f5a62f058e3905f74a9fa65d04b2f3b533408e",
 	"private": true,
 	"description": "A browser based code editor",
@@ -38,7 +38,7 @@
 	"module": "./esm/vs/editor/editor.main.js",
 	"exports": {
 		".": {
-			"types": "./esm/vs/editor/editor.api.d.ts",
+			"types": "./esm/vs/editor/editor.main.d.ts",
 			"import": "./esm/vs/editor/editor.main.js",
 			"require": "./min/vs/editor/editor.main.js"
 		},
